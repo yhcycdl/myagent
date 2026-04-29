@@ -1,0 +1,21 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+.env
+.env.*
+*.log
+
+# Generated indexes / evaluation artifacts
+data/index/
+data/cache/
+data/eval/
+data/traces/
+
+# Large or local competition artifacts
+KownledgeBase.zip
+KownledgeBase.zip:Zone.Identifier
+
+# OS / browser sidecar files
+.DS_Store
+*:Zone.Identifier

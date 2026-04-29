@@ -1,0 +1,34 @@
+[
+  {
+    "case_name": "air_conditioner_energy_saving_not_auto",
+    "question": "空调节能制冷模式怎么用？",
+    "expected_product": "空调",
+    "expected_intent": "air_conditioner_energy_saving",
+    "must_terms": ["节能", "制冷"],
+    "exclude_terms": ["自动运行", "auto operation"]
+  },
+  {
+    "case_name": "drill_charging_not_safety_warning",
+    "question": "电钻电池怎么充电？",
+    "expected_product": "电钻",
+    "expected_intent": "drill_battery_charge",
+    "must_terms": ["充电器", "电池组", "红色指示灯", "充满"],
+    "exclude_terms": ["火灾隐患", "运输电池", "不要拆开电池组"]
+  },
+  {
+    "case_name": "snowmobile_uphill_not_spark_plug",
+    "question": "How should I ride the snowmobile uphill?",
+    "expected_product": "snowmobile",
+    "expected_intent": "snowmobile_uphill",
+    "must_terms": ["uphill", "riding"],
+    "exclude_terms": ["spark plug", "electrode", "engine oil"]
+  },
+  {
+    "case_name": "motherboard_t_sensor_not_bios_generic",
+    "question": "What is the T_SENSOR connector on my motherboard?",
+    "expected_product": "motherboard",
+    "expected_intent": "motherboard_t_sensor",
+    "must_terms": ["T_SENSOR", "thermal sensor", "connector"],
+    "exclude_terms": ["BIOS generic", "boot", "Ai Tweaker"]
+  }
+]
