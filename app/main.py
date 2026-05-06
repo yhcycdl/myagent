@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from fastapi import FastAPI
 
-from app.api.chat import router as chat_router
+from app.api.chat_api import router as chat_router
 from app.core.config import Settings
 from app.services.knowledge_base import KnowledgeBaseRepository
 
@@ -31,4 +31,3 @@ def health() -> dict:
         "chunk_count": len(repository.get_chunks()),
         "image_count": len(repository.get_images()),
     }
-

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import time
 from typing import Any
 from uuid import uuid4
@@ -14,7 +15,7 @@ class FinalResponseNode(BaseNode):
 
     def __init__(self, service: Any) -> None:
         self.service = service
-        self.trace_logger = TraceLogger(service.settings.base_dir / "data" / "traces")
+        self.trace_logger = TraceLogger(os.getenv("TRACE_LOG_DIR") or service.settings.base_dir / "data" / "traces")
 
     def run(self, state: AgentState) -> AgentState:
         state.session_id = state.session_id or f"kf_session_{uuid4().hex[:12]}"

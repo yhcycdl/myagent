@@ -16,9 +16,10 @@ class AnswerVerifierNode(BaseNode):
     def run(self, state: AgentState) -> AgentState:
         answer = state.answer or ""
         issues: list[str] = []
+        direct_evidence = any(str(item.get("chunk_id", "")).startswith("direct:") for item in state.accepted_evidence)
         if not answer.strip():
             issues.append("empty_answer")
-        if state.exclude_terms and any(term and term.lower() in answer.lower() for term in state.exclude_terms):
+        if not direct_evidence and state.exclude_terms and any(term and term.lower() in answer.lower() for term in state.exclude_terms):
             issues.append("answer_contains_exclude_terms")
         if looks_english_dominant(state.question) and self._looks_chinese(answer):
             issues.append("language_mismatch")

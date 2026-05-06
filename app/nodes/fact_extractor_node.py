@@ -19,6 +19,14 @@ class FactExtractorNode(BaseNode):
         warnings: list[str] = []
         conditions: list[str] = []
 
+        for evidence in state.accepted_evidence[:5]:
+            usable_facts = evidence.get("usable_facts")
+            if isinstance(usable_facts, list):
+                for fact in usable_facts:
+                    cleaned = self._clean(str(fact))
+                    if cleaned:
+                        facts.append(cleaned)
+
         for result in state.raw_accepted_evidence[:5]:
             snippet = self._snippet(state, result)
             if not snippet:
