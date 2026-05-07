@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import os
 import sys
 from pathlib import Path
 
@@ -13,7 +12,6 @@ from app.services.chat_service import ChatService
 
 
 def main() -> int:
-    os.environ.setdefault("AGENT_GRAPH_ENABLED", "1")
     cases_path = Path(__file__).with_name("regression_cases.json")
     cases = json.loads(cases_path.read_text(encoding="utf-8"))
     service = ChatService()

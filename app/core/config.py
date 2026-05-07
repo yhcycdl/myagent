@@ -58,7 +58,6 @@ class Settings:
     rerank_timeout_seconds: float = float(os.getenv("RERANK_TIMEOUT_SECONDS", "45"))
     rerank_top_n: int = int(os.getenv("RERANK_TOP_N", "5"))
     rerank_max_candidates: int = int(os.getenv("RERANK_MAX_CANDIDATES", "24"))
-    agent_graph_enabled: bool = _env_flag("AGENT_GRAPH_ENABLED", _env_flag("AGENT_GRAPH", False))
     llm_planner_enabled: bool = _env_flag("LLM_PLANNER_ENABLED", _env_flag("AGENT_LLM_QUERY_PLANNER_ENABLED", False))
     llm_evidence_judge_enabled: bool = _env_flag("LLM_EVIDENCE_JUDGE_ENABLED", False)
     llm_fact_extractor_enabled: bool = _env_flag("LLM_FACT_EXTRACTOR_ENABLED", False)

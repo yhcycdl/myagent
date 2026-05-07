@@ -1,93 +1,92 @@
-# 多模态客服智能体 MVP
+# 多模态客服 Agent
 
+这是一个证据约束的客服 RAG 系统。当前运行入口统一走轻量版 `AgentGraph`，旧的“直接检索后生成”流程不再作为 `/chat` 或离线评测入口使用。
 
-## 目前能力
+## 架构
 
-- 解析 [KownledgeBase/手册](/home/cyh/agent/KownledgeBase/手册) 下的说明书文本
-- 识别 `<PIC>` 并把图片 ID 绑定到 chunk
-- 生成结构化 JSONL：
-  - `data/parsed/manuals.jsonl`
-  - `data/chunks/manual_chunks.jsonl`
-  - `data/chunks/images.jsonl`
-- 基于纯 Python 的混合检索：
-  - BM25 风格关键词检索
-  - 字符 n-gram 相似度检索
-  - 会话上下文加权
-- 提供 `POST /chat` API
-- 支持 `session_id`
-- 对图片输入做基础校验和占位式多模态入口，后续可以替换成真正的视觉模型
+```text
+POST /chat
+  -> ChatService
+  -> AgentGraph
+     -> ContextResolverNode
+     -> PlannerNode
+     -> ProductRouterNode
+     -> RetrievalNode
+     -> RerankNode
+     -> EvidenceJudgeNode
+     -> RetryNode
+     -> FactExtractorNode
+     -> ImageBinderNode
+     -> AnswerGeneratorNode
+     -> AnswerVerifierNode
+     -> FinalResponseNode
+```
 
-## 目录
+核心原则：
+
+- 先规划问题，再限制产品和手册范围。
+- 检索和 rerank 后必须经过 `EvidenceJudgeNode`。
+- 只有 `accepted_evidence` 能进入事实抽取和答案生成。
+- 图片只来自固定 intent 图片或 accepted evidence 绑定图片。
+- LLM 可用于 planner / evidence judge / fact extraction / verifier，但不能绕过证据自由回答。
+- 每次请求都会写 trace，方便定位错误发生在哪个节点。
+
+## 主要目录
 
 ```text
 app/
-  api/
-  core/
-  schemas/
-  services/
+  api/          # FastAPI /chat 接口
+  core/         # AgentState、AgentGraph、配置、trace
+  nodes/        # AgentGraph 节点
+  prompts/      # LLM planner / judge / verifier prompt
+  schemas/      # 请求和响应 schema
+  services/     # 知识库、检索、reranker、LLM client、生成器、会话记忆
+  evaluation/   # regression 测试和结果对比工具
+
 scripts/
-  parse_manuals.py
   build_index.py
   evaluate.py
-data/
-  parsed/
-  chunks/
-  index/
+  evaluate_rerank_agent.sh
+  serve_reranker.py
 ```
 
-## 快速开始
+## 构建索引
 
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
 python3 scripts/build_index.py
-uvicorn app.main:app --reload
 ```
 
-### 可选：接入本地 LLM 生成
+生成：
 
-当前系统默认仍可使用规则生成。如果你已经有一个 OpenAI 兼容的本地推理服务，例如 `vLLM` 或其他兼容 `/v1/chat/completions` 的服务，可以通过环境变量开启：
+- `data/parsed/manuals.jsonl`
+- `data/chunks/manual_chunks.jsonl`
+- `data/chunks/images.jsonl`
+- `data/chunks/retrieval_corpus.jsonl`
+
+## 启动 API
 
 ```bash
-export LLM_ENABLED=1
-export LLM_BASE_URL=http://127.0.0.1:8001/v1
-export LLM_MODEL=Qwen/Qwen2.5-7B-Instruct
-export LLM_API_KEY=EMPTY
-export LLM_TIMEOUT_SECONDS=45
-export LLM_MAX_TOKENS=512
-export LLM_TEMPERATURE=0.2
+uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
-开启后，系统会优先使用：
-
-- 当前检索到的 top-k 证据
-- 本地 LLM 生成客服式回答
-- 如果模型调用失败，会自动回退到现有规则生成，不影响接口可用性
-
-## API
-
-### `POST /chat`
-
-请求体：
+请求：
 
 ```json
 {
-  "question": "如何给空调遥控器安装电池？",
+  "question": "如何开启空调的节能制冷模式？",
   "images": [],
-  "session_id": "kf_session_demo",
-  "stream": false
+  "session_id": "kf_session_demo"
 }
 ```
 
-响应体：
+响应：
 
 ```json
 {
   "code": 0,
   "msg": "success",
   "data": {
-    "answer": "您好，根据当前检索到的说明书内容：...",
+    "answer": "...",
     "session_id": "kf_session_demo",
     "timestamp": 1710000000,
     "references": [],
@@ -96,41 +95,52 @@ export LLM_TEMPERATURE=0.2
 }
 ```
 
-如果设置了环境变量 `KAFU_API_TOKEN`，接口会校验 `Authorization: Bearer <token>`。
+如果配置 `KAFU_API_TOKEN`，接口需要：
 
-## 构建知识库
-
-只解析原始手册：
-
-```bash
-python3 scripts/parse_manuals.py
+```text
+Authorization: Bearer <token>
 ```
 
-解析并生成 chunk、图片映射和元数据：
+## 评测
+
+不启用 LLM / dense / reranker：
 
 ```bash
-python3 scripts/build_index.py
+LLM_ENABLED=0 DENSE_ENABLED=0 RERANK_ENABLED=0 python3 scripts/evaluate.py --output-prefix local_graph
 ```
 
-## 离线评测
+启用 reranker：
 
 ```bash
-python3 scripts/evaluate.py
+bash scripts/evaluate_rerank_agent.sh --output-prefix local_graph_rerank
 ```
 
-输出文件：
+查看答案：
 
-- `data/eval/predictions.csv`
+```bash
+python3 scripts/show_eval_answers.py data/eval/diagnostics_local_graph_rerank.csv --ids 79 123 172
+```
 
-## 当前局限
+## 可选 LLM
 
-- 图片输入目前只做了接入和校验，没有接入真正的视觉理解模型
-- `page` 字段暂时为空，因为原始手册文本没有稳定页码信息
-- 即使已经支持可选本地 LLM 生成，当前默认检索仍是纯 Python 混合检索，还没有向量召回和 reranker
+LLM 默认不直接生成最终答案。推荐只用于受控节点：
 
-## 后续建议
+```bash
+export LLM_ENABLED=1
+export LLM_BASE_URL=http://127.0.0.1:8001/v1
+export LLM_MODEL=qwen2.5-7b-instruct
+export LLM_API_KEY=EMPTY
 
-- 接入视觉模型，把图片识别结果转成检索 query
-- 接入 reranker 提高 top-k 证据质量
-- 接入大模型做更自然的客服化表达，但继续保留证据约束
-- 针对公开题补一套 case 级错误分析
+export LLM_PLANNER_ENABLED=1
+export LLM_EVIDENCE_JUDGE_ENABLED=1
+```
+
+不建议开启自由最终生成；最终答案仍应来自 accepted evidence 或 high-confidence direct intent。
+
+## Regression
+
+历史错题只作为 regression case，不写入生产逻辑题号分支。
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 TRACE_LOG_DIR=/tmp/agent_traces python3 app/evaluation/run_regression.py
+```
