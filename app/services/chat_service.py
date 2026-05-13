@@ -2285,6 +2285,10 @@ class ChatService:
             return False
 
         combined = f"{neighbor.section_title} {neighbor.text}".lower()
+        base_parent = getattr(base_result.chunk, "parent_section_id", "") or ""
+        neighbor_parent = getattr(neighbor, "parent_section_id", "") or ""
+        if base_parent and neighbor_parent and base_parent == neighbor_parent:
+            return True
         base_title = re.sub(r"\s+", "", base_result.chunk.section_title)
         neighbor_title = re.sub(r"\s+", "", neighbor.section_title)
         if slot_aliases and any(any(alias in combined for alias in aliases) for aliases in slot_aliases):

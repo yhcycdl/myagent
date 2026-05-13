@@ -271,6 +271,11 @@ class QueryProfile:
     parameter: bool
 
 
+def _chunk_search_basis(chunk: ChunkRecord) -> str:
+    search_text = getattr(chunk, "search_text", "") or chunk.text
+    return f"{chunk.manual_name} {chunk.product_name} {chunk.section_title} {search_text} {' '.join(chunk.keywords)}"
+
+
 class DenseHashRetriever:
     def __init__(self, chunks: list[ChunkRecord], dims: int = DENSE_VECTOR_DIM) -> None:
         self.chunks = chunks
@@ -280,7 +285,7 @@ class DenseHashRetriever:
         self.doc_vectors: list[list[float]] = []
 
         for chunk in chunks:
-            basis = f"{chunk.manual_name} {chunk.product_name} {chunk.section_title} {chunk.text} {' '.join(chunk.keywords)}"
+            basis = _chunk_search_basis(chunk)
             features = dense_feature_weights(basis)
             self.doc_feature_freqs.append(features)
             self.feature_df.update(features.keys())
@@ -366,7 +371,7 @@ class HybridRetriever:
         self.avg_doc_length = 0.0
 
         for chunk in chunks:
-            basis = f"{chunk.manual_name} {chunk.product_name} {chunk.section_title} {chunk.text} {' '.join(chunk.keywords)}"
+            basis = _chunk_search_basis(chunk)
             term_freq = Counter(tokenize(basis))
             self.doc_term_freqs.append(term_freq)
             self.doc_lengths.append(sum(term_freq.values()))
@@ -774,7 +779,7 @@ class DenseEmbeddingRetriever:
             vector = self._normalize(record.vector)
             if not vector:
                 continue
-            tokens = set(tokenize(f"{chunk.manual_name} {chunk.product_name} {chunk.section_title} {chunk.text}"))
+            tokens = set(tokenize(_chunk_search_basis(chunk)))
             self._entries.append((chunk, vector, tokens))
 
     def is_ready(self) -> bool:

@@ -35,6 +35,9 @@ def result_to_dict(result: Any) -> dict[str, Any]:
         "bm25_score": round(float(getattr(result, "bm25_score", 0.0)), 4),
         "semantic_score": round(float(getattr(result, "semantic_score", 0.0)), 4),
         "image_ids": list(getattr(chunk, "image_ids", []) or []),
+        "section_image_ids": list(getattr(chunk, "section_image_ids", []) or []),
+        "nearby_image_ids": list(getattr(chunk, "nearby_image_ids", []) or []),
+        "parent_section_id": getattr(chunk, "parent_section_id", ""),
         "text": text,
     }
 
@@ -56,4 +59,3 @@ def coverage_ratio(text: str, terms: list[str]) -> float:
 def split_search_terms(text: str) -> list[str]:
     raw = re.split(r"[\s,，;；/、|]+", text)
     return [item.strip() for item in raw if len(item.strip()) >= 2]
-

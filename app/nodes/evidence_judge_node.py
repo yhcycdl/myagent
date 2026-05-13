@@ -169,7 +169,8 @@ class EvidenceJudgeNode(BaseNode):
 
     def _combined_text(self, result: Any) -> str:
         chunk = result.chunk
-        return f"{chunk.manual_name} {chunk.section_title} {chunk.text}"
+        search_text = getattr(chunk, "search_text", "") or chunk.text
+        return f"{chunk.manual_name} {chunk.section_title} {search_text}"
 
     def _product_match(self, state: AgentState, result: Any) -> bool:
         if state.manual_scope:

@@ -25,6 +25,10 @@ MENU_TITLE_HINT_RE = re.compile(
 MENU_TEXT_HINT_RE = re.compile(
     r"^(选项[:：]|设置生效|出现菜单画面|显示.*画面|按下MENU/OK|按下启动开关|按下.*按钮|选择.*然后按下)"
 )
+NORMAL_CHUNK_TARGET_CHARS = 650
+NORMAL_CHUNK_OVERLAP_CHARS = 100
+STRUCTURED_ITEMS_PER_CHUNK = 4
+STRUCTURED_OVERLAP_ITEMS = 1
 NUMERIC_SNIPPET_RE = re.compile(
     r"\d+(?:\.\d+)?\s*(?:"
     r"kg|kgs?|kilogram(?:s)?|lb|lbs?|"
@@ -290,6 +294,12 @@ class ChunkRecord:
     source_file: str
     order: int
     chunk_type: str = "general"
+    parent_section_id: str = ""
+    prev_chunk_id: str | None = None
+    next_chunk_id: str | None = None
+    section_image_ids: list[str] = field(default_factory=list)
+    nearby_image_ids: list[str] = field(default_factory=list)
+    search_text: str = ""
 
     @classmethod
     def from_dict(cls, payload: dict) -> "ChunkRecord":
@@ -422,6 +432,7 @@ def build_retrieval_corpus_records(chunks: list[ChunkRecord]) -> list[RetrievalC
                 [
                     chunk.product_name,
                     chunk.section_title,
+                    chunk.search_text,
                     " ".join(chunk.keywords[:6]),
                     title_en,
                     " ".join(keywords_en[:8]),
@@ -698,20 +709,72 @@ def _merge_units_with_limit(units: list[str], target_chars: int, overlap_chars: 
     return chunks
 
 
-def _build_chunk_bodies(body: str, target_chars: int = 820, overlap_chars: int = 120) -> list[str]:
+def _merge_structured_units_by_items(
+    units: list[str],
+    *,
+    items_per_chunk: int = STRUCTURED_ITEMS_PER_CHUNK,
+    overlap_items: int = STRUCTURED_OVERLAP_ITEMS,
+) -> list[str]:
+    if not units:
+        return []
+
+    item_count = max(items_per_chunk, 1)
+    overlap = max(min(overlap_items, item_count - 1), 0)
+    chunks: list[str] = []
+    start = 0
+    while start < len(units):
+        end = min(len(units), start + item_count)
+        chunk = "\n".join(units[start:end]).strip()
+        if chunk:
+            chunks.append(chunk)
+        if end >= len(units):
+            break
+        next_start = end - overlap
+        if next_start <= start:
+            next_start = start + 1
+        start = next_start
+    return chunks
+
+
+def _build_chunk_bodies(
+    body: str,
+    target_chars: int = NORMAL_CHUNK_TARGET_CHARS,
+    overlap_chars: int = NORMAL_CHUNK_OVERLAP_CHARS,
+) -> list[str]:
     structured_units = _build_structured_units(body)
     if structured_units:
-        return _merge_units_with_limit(
-            structured_units,
-            target_chars=max(260, target_chars // 2),
-            overlap_chars=0,
-        )
+        return _merge_structured_units_by_items(structured_units)
 
     raw_units = [unit.strip() for unit in re.split(r"\n{2,}", body) if unit.strip()]
     units: list[str] = []
     for unit in raw_units:
         units.extend(_split_large_unit(unit, target_chars))
     return _merge_units_with_limit(units, target_chars, overlap_chars)
+
+
+def _section_id(product_name: str, section_index: int) -> str:
+    return f"{product_name}_section_{section_index:04d}"
+
+
+def _build_search_text(
+    *,
+    product_name: str,
+    manual_name: str,
+    section_title: str,
+    chunk_type: str,
+    text: str,
+) -> str:
+    return "\n".join(
+        part
+        for part in (
+            f"[产品: {product_name}]",
+            f"[手册: {manual_name}]",
+            f"[章节: {section_title}]",
+            f"[类型: {chunk_type}]",
+            text,
+        )
+        if part
+    ).strip()
 
 
 def _clean_chunk_text(text: str) -> str:
@@ -802,7 +865,12 @@ def build_chunks(parsed_manual: ParsedManual) -> list[ChunkRecord]:
     marked_text = _inject_image_markers(parsed_manual.text, parsed_manual.image_ids)
     chunks: list[ChunkRecord] = []
     order = 0
-    for section_title, body in _split_sections(marked_text):
+    section_pairs = list(_split_sections(marked_text))
+    for section_index, (section_title, body) in enumerate(section_pairs, start=1):
+        parent_section_id = _section_id(parsed_manual.product_name, section_index)
+        section_image_ids = _dedupe_keep_order(
+            [image_id for image_id in IMAGE_MARK_RE.findall(body or "") if image_id != "MISSING"]
+        )
         chunk_bodies = _build_chunk_bodies(body) if body else []
         if not chunk_bodies and section_title:
             chunk_bodies = [section_title]
@@ -814,6 +882,13 @@ def build_chunks(parsed_manual: ParsedManual) -> list[ChunkRecord]:
             order += 1
             chunk_type = _classify_chunk(section_title, cleaned_text)
             normalized_text = _normalize_chunk_text(section_title, cleaned_text, chunk_type)
+            search_text = _build_search_text(
+                product_name=parsed_manual.product_name,
+                manual_name=parsed_manual.manual_name,
+                section_title=section_title,
+                chunk_type=chunk_type,
+                text=normalized_text,
+            )
             chunks.append(
                 ChunkRecord(
                     chunk_id=f"{parsed_manual.product_name}_{order:04d}",
@@ -827,8 +902,24 @@ def build_chunks(parsed_manual: ParsedManual) -> list[ChunkRecord]:
                     chunk_type=chunk_type,
                     source_file=parsed_manual.source_file,
                     order=order,
+                    parent_section_id=parent_section_id,
+                    section_image_ids=section_image_ids,
+                    search_text=search_text,
                 )
             )
+    for index, chunk in enumerate(chunks):
+        previous_chunk = chunks[index - 1] if index > 0 else None
+        next_chunk = chunks[index + 1] if index + 1 < len(chunks) else None
+        chunk.prev_chunk_id = previous_chunk.chunk_id if previous_chunk else None
+        chunk.next_chunk_id = next_chunk.chunk_id if next_chunk else None
+        nearby_images: list[str] = []
+        if previous_chunk and previous_chunk.parent_section_id == chunk.parent_section_id:
+            nearby_images.extend(previous_chunk.image_ids)
+        nearby_images.extend(chunk.image_ids)
+        nearby_images.extend(chunk.section_image_ids)
+        if next_chunk and next_chunk.parent_section_id == chunk.parent_section_id:
+            nearby_images.extend(next_chunk.image_ids)
+        chunk.nearby_image_ids = _dedupe_keep_order(nearby_images)
     return chunks
 
 

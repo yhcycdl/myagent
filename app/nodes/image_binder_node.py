@@ -18,8 +18,9 @@ class ImageBinderNode(BaseNode):
         if state.intent:
             image_ids.extend(self.service.generator._planned_image_ids(state.intent))
         for result in state.raw_accepted_evidence:
-            for image_id in getattr(result.chunk, "image_ids", []) or []:
-                image_ids.append(image_id)
+            for attr_name in ("image_ids", "nearby_image_ids", "section_image_ids"):
+                for image_id in getattr(result.chunk, attr_name, []) or []:
+                    image_ids.append(image_id)
 
         filtered: list[str] = []
         for image_id in image_ids:

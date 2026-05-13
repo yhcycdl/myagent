@@ -21,14 +21,23 @@ class RerankNode(BaseNode):
             return state
         # RetrievalNode already runs the shared hybrid/reranker path per query.
         # This node is explicit so evidence cannot flow directly into generation.
-        state.raw_reranked_candidates = state.raw_candidates[:20]
+        base_candidates = state.raw_candidates[:20]
+        try:
+            expanded = self.service._expand_results_for_generation(
+                base_candidates,
+                state.resolved_question or state.question,
+                None,
+            )
+        except Exception:  # noqa: BLE001 - context expansion must not break answering
+            expanded = base_candidates
+        state.raw_reranked_candidates = expanded[:20]
         state.reranked_candidates = [result_to_dict(result) for result in state.raw_reranked_candidates]
         self.log(
             state,
             {
                 "reranked_count": len(state.raw_reranked_candidates),
                 "top": [item["chunk_id"] for item in state.reranked_candidates[:5]],
-                "mode": "graph_rerank_passthrough",
+                "mode": "graph_rerank_with_context_expansion",
             },
         )
         return state
