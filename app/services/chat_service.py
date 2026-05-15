@@ -332,9 +332,9 @@ class ChatService:
             ttl_seconds=self.settings.session_ttl_seconds,
             max_turns=self.settings.max_session_turns,
         )
-        self.multimodal = MultimodalUnderstandingService()
         self.embedding_client = EmbeddingClient(self.settings)
         self.llm_client = LLMClient(self.settings)
+        self.multimodal = MultimodalUnderstandingService(self.llm_client, self.settings)
         self.reranker_client = RerankerClient(self.settings)
         self.query_rewriter = QueryRewriteService(self.llm_client)
         self.llm_query_planner = LLMQueryPlanner(self.llm_client)

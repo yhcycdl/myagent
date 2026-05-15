@@ -12,6 +12,9 @@ class AgentState:
 
     resolved_question: str = ""
     history_summary: str = ""
+    image_understanding: str = ""
+    image_product_hint: str | None = None
+    image_query_terms: list[str] = field(default_factory=list)
 
     language: str = "zh"
     product: str | None = None
@@ -57,4 +60,3 @@ class AgentState:
 
     trace: list[dict[str, Any]] = field(default_factory=list)
     final_response: dict[str, Any] = field(default_factory=dict)
-

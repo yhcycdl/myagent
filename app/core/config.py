@@ -62,6 +62,8 @@ class Settings:
     llm_evidence_judge_enabled: bool = _env_flag("LLM_EVIDENCE_JUDGE_ENABLED", False)
     llm_fact_extractor_enabled: bool = _env_flag("LLM_FACT_EXTRACTOR_ENABLED", False)
     llm_answer_verifier_enabled: bool = _env_flag("LLM_ANSWER_VERIFIER_ENABLED", False)
+    llm_vision_enabled: bool = _env_flag("LLM_VISION_ENABLED", _env_flag("AGENT_LLM_VISION_ENABLED", False))
+    weak_evidence_fallback_enabled: bool = _env_flag("WEAK_EVIDENCE_FALLBACK_ENABLED", True)
     product_scope_hard_filter: bool = _env_flag("PRODUCT_SCOPE_HARD_FILTER", True)
     exclude_terms_hard_reject: bool = _env_flag("EXCLUDE_TERMS_HARD_REJECT", True)
     image_from_accepted_evidence_only: bool = _env_flag("IMAGE_FROM_ACCEPTED_EVIDENCE_ONLY", True)

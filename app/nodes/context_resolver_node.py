@@ -20,6 +20,31 @@ class ContextResolverNode(BaseNode):
         last_product = getattr(context, "last_product", None)
         if last_product and self._looks_followup(question):
             resolved = f"{last_product} {question}"
+        insight = None
+        if state.images:
+            try:
+                insight = self.service.multimodal.analyze(
+                    question=resolved,
+                    images=state.images,
+                    session_context=context or self.service.memory.get(state.session_id or "_vision"),
+                    alias_lookup=self.service.repository.get_alias_lookup(),
+                )
+            except Exception as exc:  # noqa: BLE001 - image understanding must not break text RAG
+                self.log(state, {"multimodal_error": str(exc)})
+                insight = None
+        if insight:
+            state.image_understanding = insight.visual_summary
+            state.image_product_hint = insight.product_hint
+            state.image_query_terms = list(insight.query_terms)
+            visual_parts = [
+                f"图片产品线索：{insight.product_hint}" if insight.product_hint else "",
+                f"图片内容：{insight.visual_summary}" if insight.visual_summary else "",
+                f"图片可见文字：{' '.join(insight.visible_text)}" if insight.visible_text else "",
+                f"图片检索词：{' '.join(insight.query_terms)}" if insight.query_terms else "",
+            ]
+            visual_context = "；".join(part for part in visual_parts if part)
+            if visual_context:
+                resolved = f"{resolved}\n{visual_context}"
         state.resolved_question = resolved
         state.language = "en" if looks_english_dominant(resolved) else "zh"
         if context and context.turns:
@@ -32,6 +57,8 @@ class ContextResolverNode(BaseNode):
                 "language": state.language,
                 "last_product": last_product,
                 "history_used": bool(context and context.turns),
+                "image_product_hint": state.image_product_hint,
+                "image_query_terms": state.image_query_terms,
             },
         )
         return state
@@ -40,4 +67,3 @@ class ContextResolverNode(BaseNode):
         lowered = question.lower()
         markers = ("它", "这个", "那个", "刚才", "上面", "继续", "怎么关", "什么时候", "what about", "how about", "it ", "that ")
         return any(marker in lowered for marker in markers)
-

@@ -1,0 +1,68 @@
+#!/usr/bin/env bash
+# Source this file once per terminal:
+#   source scripts/env_agent.sh
+#
+# Optional local secret file:
+#   cp env.agent.example .env.local
+#   edit .env.local
+
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+  echo "This script must be sourced, not executed:"
+  echo "  source scripts/env_agent.sh"
+  exit 1
+fi
+
+AGENT_PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+AGENT_ENV_FILE="${AGENT_ENV_FILE:-${AGENT_PROJECT_ROOT}/.env.local}"
+
+if [[ -f "${AGENT_ENV_FILE}" ]]; then
+  set -a
+  # shellcheck source=/dev/null
+  source "${AGENT_ENV_FILE}"
+  set +a
+fi
+
+# LLM defaults. Keep the API key in .env.local, not in git.
+export AGENT_LLM_ENABLED="${AGENT_LLM_ENABLED:-1}"
+export AGENT_LLM_BASE_URL="${AGENT_LLM_BASE_URL:-${LLM_BASE_URL:-https://token-plan-cn.xiaomimimo.com/v1}}"
+export AGENT_LLM_MODEL="${AGENT_LLM_MODEL:-${LLM_MODEL:-MiMo-V2.5-Pro}}"
+export AGENT_LLM_API_KEY="${AGENT_LLM_API_KEY:-${LLM_API_KEY:-}}"
+export AGENT_LLM_MAX_TOKENS="${AGENT_LLM_MAX_TOKENS:-${LLM_MAX_TOKENS:-384}}"
+export AGENT_LLM_TEMPERATURE="${AGENT_LLM_TEMPERATURE:-${LLM_TEMPERATURE:-0}}"
+
+# Safe full-run defaults: use the model for polishing/verifying, not free final generation.
+export AGENT_LLM_POLISH_ENABLED="${AGENT_LLM_POLISH_ENABLED:-1}"
+export AGENT_LLM_VERIFY_ENABLED="${AGENT_LLM_VERIFY_ENABLED:-1}"
+export AGENT_LLM_FINAL_GENERATION_ENABLED="${AGENT_LLM_FINAL_GENERATION_ENABLED:-0}"
+export AGENT_LLM_QUERY_PLANNER_ENABLED="${AGENT_LLM_QUERY_PLANNER_ENABLED:-0}"
+export AGENT_LLM_VISION_ENABLED="${AGENT_LLM_VISION_ENABLED:-1}"
+
+# Also expose the non-AGENT names used directly by some modules.
+export LLM_ENABLED="${LLM_ENABLED:-${AGENT_LLM_ENABLED}}"
+export LLM_BASE_URL="${LLM_BASE_URL:-${AGENT_LLM_BASE_URL}}"
+export LLM_MODEL="${LLM_MODEL:-${AGENT_LLM_MODEL}}"
+export LLM_API_KEY="${LLM_API_KEY:-${AGENT_LLM_API_KEY}}"
+export LLM_MAX_TOKENS="${LLM_MAX_TOKENS:-${AGENT_LLM_MAX_TOKENS}}"
+export LLM_TEMPERATURE="${LLM_TEMPERATURE:-${AGENT_LLM_TEMPERATURE}}"
+export LLM_POLISH_ENABLED="${LLM_POLISH_ENABLED:-${AGENT_LLM_POLISH_ENABLED}}"
+export LLM_VERIFY_ENABLED="${LLM_VERIFY_ENABLED:-${AGENT_LLM_VERIFY_ENABLED}}"
+export LLM_FINAL_GENERATION_ENABLED="${LLM_FINAL_GENERATION_ENABLED:-${AGENT_LLM_FINAL_GENERATION_ENABLED}}"
+export LLM_PLANNER_ENABLED="${LLM_PLANNER_ENABLED:-${AGENT_LLM_QUERY_PLANNER_ENABLED}}"
+export LLM_VISION_ENABLED="${LLM_VISION_ENABLED:-${AGENT_LLM_VISION_ENABLED}}"
+
+# Reranker defaults. The server should listen on 127.0.0.1:8003.
+export AGENT_RERANK_ENABLED="${AGENT_RERANK_ENABLED:-1}"
+export AGENT_RERANK_BASE_URL="${AGENT_RERANK_BASE_URL:-http://127.0.0.1:8003/v1}"
+export AGENT_RERANK_MODEL="${AGENT_RERANK_MODEL:-bge-reranker-v2-m3}"
+export AGENT_RERANK_API_KEY="${AGENT_RERANK_API_KEY:-EMPTY}"
+export AGENT_RERANK_TOP_N="${AGENT_RERANK_TOP_N:-15}"
+export AGENT_RERANK_MAX_CANDIDATES="${AGENT_RERANK_MAX_CANDIDATES:-24}"
+export WEAK_EVIDENCE_FALLBACK_ENABLED="${WEAK_EVIDENCE_FALLBACK_ENABLED:-1}"
+
+echo "Agent environment loaded:"
+echo "  LLM_MODEL=${LLM_MODEL}"
+echo "  LLM_BASE_URL=${LLM_BASE_URL}"
+echo "  LLM_MAX_TOKENS=${LLM_MAX_TOKENS}"
+echo "  LLM_TEMPERATURE=${LLM_TEMPERATURE}"
+echo "  LLM_API_KEY=$([[ -n "${LLM_API_KEY}" ]] && echo '<set>' || echo '<missing>')"
+echo "  RERANK_BASE_URL=${AGENT_RERANK_BASE_URL}"

@@ -17,6 +17,7 @@ from app.nodes.product_router_node import ProductRouterNode
 from app.nodes.rerank_node import RerankNode
 from app.nodes.retrieval_node import RetrievalNode
 from app.nodes.retry_node import RetryNode
+from app.nodes.utils import result_to_dict
 from app.services.preprocess import is_general_support_question, is_manual_access_question
 
 
@@ -61,6 +62,9 @@ class AgentGraph:
                 state = self.retry.run(state)
 
         direct_intent = bool(state.accepted_evidence and str(state.accepted_evidence[0].get("chunk_id", "")).startswith("direct:"))
+        if not state.accepted_evidence and not direct_intent and self._weak_evidence_enabled(state):
+            state = self._accept_weak_evidence(state)
+
         if not state.accepted_evidence and not direct_intent:
             state = self.fallback.run(state)
             return self.final_response.run(state)
@@ -80,6 +84,42 @@ class AgentGraph:
             return state
         state.fallback_reason = state.verifier_result.get("feedback") or "verifier_failed"
         return self.fallback.run(state)
+
+    def _weak_evidence_enabled(self, state: AgentState) -> bool:
+        if not getattr(self.service.settings, "weak_evidence_fallback_enabled", True):
+            return False
+        question_type = state.question_type or ""
+        return question_type.startswith("manual") or question_type == "troubleshooting" or bool(state.product)
+
+    def _accept_weak_evidence(self, state: AgentState) -> AgentState:
+        candidates = list(state.raw_reranked_candidates or state.raw_candidates or [])
+        if not candidates:
+            return state
+        accepted = candidates[: min(3, len(candidates))]
+        state.raw_accepted_evidence = accepted
+        state.accepted_evidence = []
+        for result in accepted:
+            payload = result_to_dict(result)
+            payload.update(
+                {
+                    "decision": "accept",
+                    "reason": "weak_evidence_after_failed_judge",
+                    "confidence": max(0.35, min(float(getattr(result, "score", 0.0)), 0.5)),
+                }
+            )
+            state.accepted_evidence.append(payload)
+        state.evidence_confidence = max((item.get("confidence", 0.0) for item in state.accepted_evidence), default=0.35)
+        state.fallback_reason = "weak_evidence_after_failed_judge"
+        state.trace.append(
+            {
+                "node": "weak_evidence",
+                "data": {
+                    "accepted": [item.get("chunk_id") for item in state.accepted_evidence],
+                    "reason": state.fallback_reason,
+                },
+            }
+        )
+        return state
 
     def _max_retry(self) -> int:
         raw = os.getenv("RETRIEVAL_MAX_RETRY", "3")

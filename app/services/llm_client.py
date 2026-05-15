@@ -18,7 +18,7 @@ except ImportError:  # pragma: no cover - optional dependency until installed
 @dataclass(slots=True)
 class LLMMessage:
     role: str
-    content: str
+    content: str | list[dict[str, Any]]
 
 
 class LLMClient:
@@ -73,6 +73,32 @@ class LLMClient:
             LOGGER.warning("LLM response did not contain usable text")
             return None
         return answer
+
+    def chat_with_images(
+        self,
+        *,
+        prompt: str,
+        images: list[str],
+        system_prompt: str | None = None,
+        temperature: float | None = 0.0,
+        max_tokens: int | None = 512,
+    ) -> str | None:
+        if not images:
+            return self.chat(
+                [LLMMessage(role="user", content=prompt)],
+                temperature=temperature,
+                max_tokens=max_tokens,
+            )
+
+        content: list[dict[str, Any]] = [{"type": "text", "text": prompt}]
+        for image in images[:3]:
+            content.append({"type": "image_url", "image_url": {"url": image}})
+
+        messages: list[LLMMessage] = []
+        if system_prompt:
+            messages.append(LLMMessage(role="system", content=system_prompt))
+        messages.append(LLMMessage(role="user", content=content))
+        return self.chat(messages, temperature=temperature, max_tokens=max_tokens)
 
     def _build_endpoint(self, base_url: str) -> str:
         normalized = base_url.rstrip("/")

@@ -25,7 +25,7 @@ class PlannerNode(BaseNode):
         state.exclude_terms = normalize_terms([*plan.background_title_terms, *plan.background_body_terms], limit=12)
         state.answer_expectation = self._answer_expectation(state.intent, state.question_type)
 
-        product = self.service._infer_product_hint_from_text([question])
+        product = state.image_product_hint or self.service._infer_product_hint_from_text([question])
         state.product = product
 
         query_plan = None
@@ -54,6 +54,11 @@ class PlannerNode(BaseNode):
 
         if not state.query_variants:
             state.query_variants = self._default_query_variants(question, state)
+        if state.image_query_terms:
+            state.object_terms = normalize_terms([*state.object_terms, *state.image_query_terms], limit=14)
+            state.must_terms = normalize_terms([*state.must_terms, *state.image_query_terms[:6]], limit=12)
+            visual_query = " ".join([question, *state.image_query_terms[:10]])
+            state.query_variants = normalize_terms([visual_query, *state.query_variants], limit=6)
 
         self.log(
             state,
@@ -99,4 +104,3 @@ class PlannerNode(BaseNode):
         if object_terms and object_terms not in variants:
             variants.append(object_terms)
         return normalize_terms(variants, limit=4)
-
