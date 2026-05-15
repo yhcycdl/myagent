@@ -44,6 +44,8 @@ class Settings:
     llm_timeout_seconds: float = float(os.getenv("LLM_TIMEOUT_SECONDS", "45"))
     llm_max_tokens: int = int(os.getenv("LLM_MAX_TOKENS", "512"))
     llm_temperature: float = float(os.getenv("LLM_TEMPERATURE", "0.2"))
+    llm_reasoning_effort: str = os.getenv("LLM_REASONING_EFFORT", "").strip()
+    llm_allow_reasoning_content_as_text: bool = _env_flag("LLM_ALLOW_REASONING_CONTENT_AS_TEXT", False)
     dense_enabled: bool = _env_flag("DENSE_ENABLED", False)
     dense_base_url: str = os.getenv("DENSE_BASE_URL", "").strip()
     dense_api_key: str = os.getenv("DENSE_API_KEY", "").strip()

@@ -124,7 +124,7 @@ class MultimodalUnderstandingService:
             images=images,
             system_prompt="Only output valid JSON. Do not answer the customer question.",
             temperature=0.0,
-            max_tokens=512,
+            max_tokens=min(self.llm_client.settings.llm_max_tokens, 768),
         )
         if not raw:
             return None

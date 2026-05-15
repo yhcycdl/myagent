@@ -55,6 +55,8 @@ class LLMClient:
             "max_tokens": self.settings.llm_max_tokens if max_tokens is None else max_tokens,
             "stream": False,
         }
+        if self.settings.llm_reasoning_effort:
+            payload["reasoning_effort"] = self.settings.llm_reasoning_effort
 
         try:
             with httpx.Client(timeout=self.settings.llm_timeout_seconds) as client:
@@ -70,7 +72,7 @@ class LLMClient:
 
         answer = self._extract_answer(data)
         if not answer:
-            LOGGER.warning("LLM response did not contain usable text")
+            LOGGER.warning("LLM response did not contain usable text: %s", self._summarize_empty_response(data))
             return None
         return answer
 
@@ -123,6 +125,10 @@ class LLMClient:
             extracted = self._extract_content_text(content)
             if extracted:
                 return extracted
+            if self.settings.llm_allow_reasoning_content_as_text:
+                reasoning = message.get("reasoning_content")
+                if isinstance(reasoning, str) and reasoning.strip():
+                    return reasoning.strip()
 
         text = first.get("text")
         if isinstance(text, str) and text.strip():
@@ -153,3 +159,23 @@ class LLMClient:
         if not parts:
             return None
         return "\n".join(parts)
+
+    def _summarize_empty_response(self, payload: dict[str, Any]) -> dict[str, Any]:
+        choices = payload.get("choices")
+        if not isinstance(choices, list) or not choices:
+            return {"choices": type(choices).__name__}
+        first = choices[0] if isinstance(choices[0], dict) else {}
+        message = first.get("message") if isinstance(first, dict) else None
+        summary: dict[str, Any] = {
+            "finish_reason": first.get("finish_reason") if isinstance(first, dict) else None,
+        }
+        if isinstance(message, dict):
+            summary["message_keys"] = sorted(message.keys())
+            content = message.get("content")
+            summary["content_type"] = type(content).__name__
+            if isinstance(content, str):
+                summary["content_len"] = len(content)
+            if "reasoning_content" in message:
+                reasoning = message.get("reasoning_content")
+                summary["reasoning_content_len"] = len(reasoning) if isinstance(reasoning, str) else None
+        return summary

@@ -346,7 +346,7 @@ class EvidenceJudgeNode(BaseNode):
                 LLMMessage(role="user", content=json.dumps(payload, ensure_ascii=False, separators=(",", ":"))),
             ],
             temperature=0.0,
-            max_tokens=220,
+            max_tokens=min(self.service.llm_client.settings.llm_max_tokens, 320),
         )
         if not raw:
             return None

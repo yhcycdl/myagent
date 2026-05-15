@@ -1244,7 +1244,7 @@ class EvidenceGroundedGenerator:
             ),
             LLMMessage(role="user", content=prompt),
         ]
-        answer = self.llm_client.chat(messages, temperature=0.0, max_tokens=min(self.llm_client.settings.llm_max_tokens, 384))
+        answer = self.llm_client.chat(messages, temperature=0.0, max_tokens=min(self.llm_client.settings.llm_max_tokens, 768))
         cleaned = self._clean_llm_answer(answer)
         if not cleaned or self._looks_low_quality_answer(cleaned):
             return None
@@ -1295,7 +1295,7 @@ class EvidenceGroundedGenerator:
                 LLMMessage(role="user", content=prompt),
             ],
             temperature=0.0,
-            max_tokens=96,
+            max_tokens=min(self.llm_client.settings.llm_max_tokens, 160),
         )
         if not raw:
             return True

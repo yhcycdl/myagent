@@ -70,10 +70,10 @@ class LLMQueryPlanner:
         if self.llm_client is None or not self.llm_client.is_enabled():
             return None
         messages = self._build_messages(question, product, language, candidates, candidate_limit=5, text_limit=140)
-        raw = self.llm_client.chat(messages, temperature=0.0, max_tokens=260)
+        raw = self.llm_client.chat(messages, temperature=0.0, max_tokens=min(self.llm_client.settings.llm_max_tokens, 384))
         if not raw:
             messages = self._build_messages(question, product, language, candidates, candidate_limit=3, text_limit=80)
-            raw = self.llm_client.chat(messages, temperature=0.0, max_tokens=180)
+            raw = self.llm_client.chat(messages, temperature=0.0, max_tokens=min(self.llm_client.settings.llm_max_tokens, 256))
         if not raw:
             return None
         payload = self._parse_json(raw)
